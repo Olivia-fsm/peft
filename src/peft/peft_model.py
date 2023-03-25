@@ -197,7 +197,7 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
         if self.peft_config.num_transformer_submodules is None:
             self.peft_config.num_transformer_submodules = (
                 2 if self.peft_config.task_type == TaskType.SEQ_2_SEQ_LM else 1
-            )
+            ) ## SEQ_2_SEQ_LM needs two virtual tokens: one for encoder and one for decoder side
 
         for named_param, value in list(transformer_backbone.named_parameters()):
             if value.shape[0] == self.base_model.config.vocab_size:

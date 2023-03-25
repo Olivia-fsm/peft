@@ -15,8 +15,9 @@
 
 
 from dataclasses import dataclass, field
-
+from typing import Optional, Union
 import torch
+import torch.nn as nn
 
 from ..utils import PeftType, PromptLearningConfig
 
@@ -35,11 +36,31 @@ class PrefixTuningConfig(PromptLearningConfig):
         default=None,
         metadata={"help": "The hidden size of the encoder"},
     )
-    prefix_projection: bool = field(
-        default=False,
-        metadata={"help": "Whether to project the prefix tokens"},
+    
+    prefix_projection: str = field(
+        default="MLP",
+        metadata={"help": "How to project the prefix tokens: (MLP, TEXT, RANDOM)"},
     )
-
+    
+    prefix_tuning_init_text: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The text to use for prefix tuning initialization. Only used if prompt_tuning_init is `TEXT`"
+        },
+    )
+    
+    tokenizer_name_or_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The tokenizer used for prefix tuning initialization. Only used if prefix_tuning_init is `TEXT`"
+        },
+    )
+    model_name_or_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The model used for prefix tuning initialization. Only used if prefix_tuning_init is `TEXT`"
+        },
+    )
     def __post_init__(self):
         self.peft_type = PeftType.PREFIX_TUNING
 
@@ -57,7 +78,8 @@ class PrefixEncoder(torch.nn.Module):
 
         >>> from peft import PrefixEncoder, PrefixTuningConfig >>> config = PrefixTuningConfig(
                 peft_type="PREFIX_TUNING", task_type="SEQ_2_SEQ_LM", num_virtual_tokens=20, token_dim=768,
-                num_transformer_submodules=1, num_attention_heads=12, num_layers=12, encoder_hidden_size=768
+                num_transformer_submodules=1, num_attention_heads=12, num_layers=12, encoder_hidden_size=768,
+                prefix_tuning_init_text=None, 
             )
         >>> prefix_encoder = PrefixEncoder(config)
 
@@ -80,18 +102,44 @@ class PrefixEncoder(torch.nn.Module):
         token_dim = config.token_dim
         num_layers = config.num_layers
         encoder_hidden_size = config.encoder_hidden_size
-        num_virtual_tokens = config.num_virtual_tokens
-        if self.prefix_projection and not config.inference_mode:
+        self.num_virtual_tokens = config.num_virtual_tokens
+        if self.prefix_projection=="RANDOM" or config.inference_mode:
+            self.embedding = torch.nn.Embedding(self.num_virtual_tokens, num_layers * 2 * token_dim)
+        elif self.prefix_projection=="MLP":
             # Use a two-layer MLP to encode the prefix
-            self.embedding = torch.nn.Embedding(num_virtual_tokens, token_dim)
+            self.embedding = torch.nn.Embedding(self.num_virtual_tokens, token_dim)
             self.transform = torch.nn.Sequential(
                 torch.nn.Linear(token_dim, encoder_hidden_size),
                 torch.nn.Tanh(),
                 torch.nn.Linear(encoder_hidden_size, num_layers * 2 * token_dim),
             )
+        elif self.prefix_projection=="TEXT":
+            self.tokenizer_name_or_path = config.tokenizer_name_or_path
+            self.model_name_or_path = config.model_name_or_path
+            self.prompt_tuning_init_text = config.prompt_tuning_init_text
+            # self.model = config.model
+            self.embedding = nn.Parameter(self._get_gold_init())
         else:
-            self.embedding = torch.nn.Embedding(num_virtual_tokens, num_layers * 2 * token_dim)
+            raise ValueError("self.prefix_projection is not supported")
 
+    def _get_gold_init(self):
+        from transformers import AutoTokenizer, AutoModel
+        tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path)
+        tokenizer = AutoModel.from_pretrained(self.tokenizer_name_or_path)
+        init_text = self.prompt_tuning_init_text
+        init_token_ids = tokenizer(init_text)["input_ids"]
+        # Trim or iterate until num_text_tokens matches total_virtual_tokens
+        self.num_virtual_tokens = len(init_token_ids)
+        
+        self.model = self.model.cuda()
+        with torch.no_grad():
+            output = self.model(init_token_ids.to(self.model.device), return_dict=True, use_cache=True)
+            output = output.past_key_values
+            print("=== Sanity Check ===")
+            print("init past_key_value for each layer as: ", len(output), output[0].shape)
+            output = torch.cat(output, dim=0)
+        return output
+        
     def forward(self, prefix: torch.Tensor):
         if self.prefix_projection:
             prefix_tokens = self.embedding(prefix)
