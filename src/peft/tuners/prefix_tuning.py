@@ -119,8 +119,11 @@ class PrefixEncoder(torch.nn.Module):
                 torch.nn.Linear(encoder_hidden_size, num_layers * 2 * token_dim),
             )
         elif self.prefix_projection=="TEXT":
+            from transformers import AutoTokenizer, AutoModel
             self.tokenizer_name_or_path = config.tokenizer_name_or_path
             self.model_name_or_path = config.model_name_or_path
+            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path)
+            self.model = AutoModel.from_pretrained(self.model_name_or_path)
             self.prefix_tuning_init_text = config.prefix_tuning_init_text
             # self.model = config.model
             self.embedding = nn.Parameter(self._get_gold_init())
@@ -128,17 +131,18 @@ class PrefixEncoder(torch.nn.Module):
             raise ValueError("self.prefix_projection is not supported")
 
     def _get_gold_init(self):
-        from transformers import AutoTokenizer, AutoModel
-        tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path)
-        tokenizer = AutoModel.from_pretrained(self.tokenizer_name_or_path)
         init_text = self.prefix_tuning_init_text
-        init_token_ids = tokenizer(init_text)["input_ids"]
+        init_token_ids = self.tokenizer(init_text)["input_ids"]
         # Trim or iterate until num_text_tokens matches total_virtual_tokens
         self.num_virtual_tokens = len(init_token_ids)
         
         self.model = self.model.cuda()
         with torch.no_grad():
-            output = self.model(init_token_ids.to(self.model.device), return_dict=True, use_cache=True)
+            try:
+                output = self.model(init_token_ids.to(self.model.device), return_dict=True, use_cache=True)
+            except:
+                print('init_token_ids: ', init_token_ids)
+                print('init_token_ids.shape: ', init_token_ids.shape)
             output = output.past_key_values
             print("=== Sanity Check ===")
             print("init past_key_value for each layer as: ", len(output), output[0].shape)
