@@ -273,8 +273,9 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
             past_key_values = past_key_values.split(
                 self.peft_config.num_transformer_submodules * 2
             )
-            print('prefix init type: ', self.peft_config.prefix_projection)
-            print('past_key_values.shape: ', len(past_key_values), past_key_values[0].shape)
+            # TEST #
+            # print('prefix init type: ', self.peft_config.prefix_projection)
+            # print('past_key_values.shape: ', len(past_key_values), past_key_values[0].shape)
             if TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING.get(self.config.model_type, None) is not None:
                 post_process_fn = TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING[self.config.model_type]
                 past_key_values = post_process_fn(past_key_values)

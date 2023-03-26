@@ -149,10 +149,9 @@ class PrefixEncoder(torch.nn.Module):
                 init_val.append(item[0].unsqueeze(0)) # key, [1, 1, num_heads, sequence_length, dim_head]
                 init_val.append(item[1].unsqueeze(0)) # val
             output = torch.cat(init_val, dim=0)
-            print("=== Sanity Check ===")
-            print('init past_key_values: ', output.shape)
-            # print("init past_key_value for each layer as: ", len(output), len(output[0]), output[0][0].shape)
-            # output = torch.cat(output, dim=0)
+            # TEST #
+            # print("=== Sanity Check ===")
+            # print('init past_key_values: ', output.shape)
         return output
         
     def forward(self, prefix):
