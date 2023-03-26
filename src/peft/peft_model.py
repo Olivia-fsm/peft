@@ -220,9 +220,15 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
             raise ValueError("Not supported")
         
         self.prompt_encoder = prompt_encoder
-        self.prompt_tokens = torch.arange(
-            self.peft_config.num_virtual_tokens * self.peft_config.num_transformer_submodules
-        ).long()
+        if self.peft_config.peft_type == PeftType.PREFIX_TUNING and self.peft_config.prefix_projection==PrefixTuningInit.TEXT:
+            self.peft_config.num_virtual_tokens = prompt_encoder.embedding.shape[-2]
+            self.prompt_tokens = torch.arange(
+                self.peft_config.num_virtual_tokens * self.peft_config.num_transformer_submodules
+            ).long()
+        else:
+            self.prompt_tokens = torch.arange(
+                self.peft_config.num_virtual_tokens * self.peft_config.num_transformer_submodules
+            ).long()
 
     def get_prompt_embedding_to_save(self):
         """
