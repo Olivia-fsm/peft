@@ -145,7 +145,7 @@ class PrefixEncoder(torch.nn.Module):
                 print('init_token_ids.shape: ', init_token_ids.shape)
             output = output.past_key_values
             print("=== Sanity Check ===")
-            print("init past_key_value for each layer as: ", len(output), output[0].shape)
+            print("init past_key_value for each layer as: ", len(output), len(output[0]), output[0][0].shape)
             output = torch.cat(output, dim=0)
         return output
         
