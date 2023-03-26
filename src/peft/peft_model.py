@@ -15,6 +15,7 @@
 
 import inspect
 import os
+import enum
 import warnings
 from contextlib import contextmanager
 
@@ -41,6 +42,11 @@ from .utils import (
     set_peft_model_state_dict,
     shift_tokens_right,
 )
+
+class PrefixTuningInit(str, enum.Enum):
+    MLP = "MLP"
+    TEXT = "TEXT"
+    RANDOM = "RANDOM"
 
 
 class PeftModel(PushToHubMixin, torch.nn.Module):
@@ -235,28 +241,39 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
         """
         prompt_tokens = self.prompt_tokens.unsqueeze(0).expand(batch_size, -1).to(self.device)
         if self.peft_config.peft_type == PeftType.PREFIX_TUNING:
-            prompt_tokens = prompt_tokens[:, : self.peft_config.num_virtual_tokens]
-            if self.peft_config.inference_mode:
-                past_key_values = self.prompt_encoder.embedding.weight.repeat(batch_size, 1, 1)
-            else:
-                past_key_values = self.prompt_encoder(prompt_tokens)
-            past_key_values = past_key_values.view(
-                batch_size,
-                self.peft_config.num_virtual_tokens,
-                self.peft_config.num_layers * 2,
-                self.peft_config.num_attention_heads,
-                self.peft_config.token_dim // self.peft_config.num_attention_heads,
-            )
+            if self.peft_config.prefix_projection!=PrefixTuningInit.TEXT:
+                prompt_tokens = prompt_tokens[:, : self.peft_config.num_virtual_tokens]
+                if self.peft_config.inference_mode:
+                    past_key_values = self.prompt_encoder.embedding.weight.repeat(batch_size, 1, 1)
+                else:
+                    past_key_values = self.prompt_encoder(prompt_tokens)
+                past_key_values = past_key_values.view(
+                    batch_size,
+                    self.peft_config.num_virtual_tokens,
+                    self.peft_config.num_layers * 2,
+                    self.peft_config.num_attention_heads,
+                    self.peft_config.token_dim // self.peft_config.num_attention_heads,
+                )
             if self.peft_config.num_transformer_submodules == 2:
                 past_key_values = torch.cat([past_key_values, past_key_values], dim=2)
-            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(
+                past_key_values = past_key_values.permute([2, 0, 3, 1, 4])
+            else:
+                past_key_values = self.prompt_encoder(None)
+                if self.peft_config.num_transformer_submodules == 2:
+                    past_key_values = torch.cat([past_key_values, past_key_values], dim=0)
+            
+            past_key_values = past_key_values.split(
                 self.peft_config.num_transformer_submodules * 2
             )
+            print('prefix init type: ', self.peft_config.prefix_projection)
             print('past_key_values.shape: ', past_key_values.shape)
             if TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING.get(self.config.model_type, None) is not None:
                 post_process_fn = TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING[self.config.model_type]
                 past_key_values = post_process_fn(past_key_values)
             return past_key_values
+            
+                
+                
         else:
             if self.peft_config.inference_mode:
                 prompts = self.prompt_encoder.embedding.weight.repeat(batch_size, 1, 1)
