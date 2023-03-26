@@ -132,7 +132,7 @@ class PrefixEncoder(torch.nn.Module):
 
     def _get_gold_init(self):
         init_text = self.prefix_tuning_init_text
-        init_token_ids = self.tokenizer(init_text)["input_ids"]
+        init_token_ids = self.tokenizer(init_text, return_tensors='pt')["input_ids"]
         # Trim or iterate until num_text_tokens matches total_virtual_tokens
         self.num_virtual_tokens = len(init_token_ids)
         
