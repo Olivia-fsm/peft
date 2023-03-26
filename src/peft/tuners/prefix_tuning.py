@@ -144,9 +144,16 @@ class PrefixEncoder(torch.nn.Module):
                 print('init_token_ids: ', init_token_ids)
                 print('init_token_ids.shape: ', init_token_ids.shape)
             output = output.past_key_values
+            output = output.past_key_values
+            init_val = []
+            for item in output:
+                init_val.append(item[0].unsqueeze(0)) # key, [1, 1, num_heads, sequence_length, dim_head]
+                init_val.append(item[1].unsqueeze(0)) # val
+            output = torch.cat(init_val, dim=0)
             print("=== Sanity Check ===")
-            print("init past_key_value for each layer as: ", len(output), len(output[0]), output[0][0].shape)
-            output = torch.cat(output, dim=0)
+            print('init past_key_values: ', output.shape)
+            # print("init past_key_value for each layer as: ", len(output), len(output[0]), output[0][0].shape)
+            # output = torch.cat(output, dim=0)
         return output
         
     def forward(self, prefix: torch.Tensor):
