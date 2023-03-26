@@ -144,7 +144,6 @@ class PrefixEncoder(torch.nn.Module):
                 print('init_token_ids: ', init_token_ids)
                 print('init_token_ids.shape: ', init_token_ids.shape)
             output = output.past_key_values
-            output = output.past_key_values
             init_val = []
             for item in output:
                 init_val.append(item[0].unsqueeze(0)) # key, [1, 1, num_heads, sequence_length, dim_head]
