@@ -156,7 +156,9 @@ class PrefixEncoder(torch.nn.Module):
         return output
         
     def forward(self, prefix: torch.Tensor):
-        if self.prefix_projection:
+        if self.prefix_projection==PrefixTuningInit.TEXT:
+            return self.embedding
+        elif self.prefix_projection==PrefixTuningInit.MLP:
             prefix_tokens = self.embedding(prefix)
             past_key_values = self.transform(prefix_tokens)
         else:
