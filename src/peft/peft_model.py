@@ -254,8 +254,8 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
                     self.peft_config.num_attention_heads,
                     self.peft_config.token_dim // self.peft_config.num_attention_heads,
                 )
-            if self.peft_config.num_transformer_submodules == 2:
-                past_key_values = torch.cat([past_key_values, past_key_values], dim=2)
+                if self.peft_config.num_transformer_submodules == 2:
+                    past_key_values = torch.cat([past_key_values, past_key_values], dim=2)
                 past_key_values = past_key_values.permute([2, 0, 3, 1, 4])
             else:
                 past_key_values = self.prompt_encoder(None)
@@ -273,9 +273,7 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
                 post_process_fn = TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING[self.config.model_type]
                 past_key_values = post_process_fn(past_key_values)
             return past_key_values
-            
-                
-                
+
         else:
             if self.peft_config.inference_mode:
                 prompts = self.prompt_encoder.embedding.weight.repeat(batch_size, 1, 1)
