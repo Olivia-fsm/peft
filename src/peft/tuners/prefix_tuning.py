@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import enum
 from dataclasses import dataclass, field
 from typing import Optional, Union
 import torch
@@ -21,6 +21,10 @@ import torch.nn as nn
 
 from ..utils import PeftType, PromptLearningConfig
 
+class PrefixTuningInit(str, enum.Enum):
+    MLP = "MLP"
+    TEXT = "TEXT"
+    RANDOM = "RANDOM"
 
 @dataclass
 class PrefixTuningConfig(PromptLearningConfig):
@@ -79,7 +83,8 @@ class PrefixEncoder(torch.nn.Module):
         >>> from peft import PrefixEncoder, PrefixTuningConfig >>> config = PrefixTuningConfig(
                 peft_type="PREFIX_TUNING", task_type="SEQ_2_SEQ_LM", num_virtual_tokens=20, token_dim=768,
                 num_transformer_submodules=1, num_attention_heads=12, num_layers=12, encoder_hidden_size=768,
-                prefix_tuning_init_text=None, 
+                prefix_projection='TEXT', prefix_tuning_init_text='',
+                prefix_tuning_init_text=None, tokenizer_name_or_path='gpt2', model_name_or_path='gpt2',
             )
         >>> prefix_encoder = PrefixEncoder(config)
 
@@ -116,7 +121,7 @@ class PrefixEncoder(torch.nn.Module):
         elif self.prefix_projection=="TEXT":
             self.tokenizer_name_or_path = config.tokenizer_name_or_path
             self.model_name_or_path = config.model_name_or_path
-            self.prompt_tuning_init_text = config.prompt_tuning_init_text
+            self.prefix_tuning_init_text = config.prefix_tuning_init_text
             # self.model = config.model
             self.embedding = nn.Parameter(self._get_gold_init())
         else:
@@ -126,7 +131,7 @@ class PrefixEncoder(torch.nn.Module):
         from transformers import AutoTokenizer, AutoModel
         tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path)
         tokenizer = AutoModel.from_pretrained(self.tokenizer_name_or_path)
-        init_text = self.prompt_tuning_init_text
+        init_text = self.prefix_tuning_init_text
         init_token_ids = tokenizer(init_text)["input_ids"]
         # Trim or iterate until num_text_tokens matches total_virtual_tokens
         self.num_virtual_tokens = len(init_token_ids)

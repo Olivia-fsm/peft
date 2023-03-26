@@ -174,7 +174,7 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
                 device_map = infer_auto_device_map(
                     model, max_memory=max_memory, no_split_module_classes=no_split_module_classes
                 )
-            model = dispatch_model(model, device_map=device_map)
+            model = dispatch_model(model, device_map=device_map) # distributed training
             hook = AlignDevicesHook(io_same_device=True)
             if model.peft_config.peft_type == PeftType.LORA:
                 add_hook_to_module(model.base_model.model, hook)
@@ -212,6 +212,7 @@ class PeftModel(PushToHubMixin, torch.nn.Module):
             prompt_encoder = PrefixEncoder(self.peft_config)
         else:
             raise ValueError("Not supported")
+        
         self.prompt_encoder = prompt_encoder
         self.prompt_tokens = torch.arange(
             self.peft_config.num_virtual_tokens * self.peft_config.num_transformer_submodules
