@@ -98,7 +98,10 @@ class PromptEmbedding(torch.nn.Module):
         if config.prompt_tuning_init == PromptTuningInit.TEXT:
             from transformers import AutoTokenizer
 
-            tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name_or_path)
+            if 'gpt' in config.tokenizer_name_or_path:
+                tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name_or_path, padding_side='left')
+            else:
+                tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name_or_path)
             init_text = config.prompt_tuning_init_text
             init_token_ids = tokenizer(init_text)["input_ids"]
             # Trim or iterate until num_text_tokens matches total_virtual_tokens
